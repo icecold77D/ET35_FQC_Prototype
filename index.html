@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>ET35 儀表 FQC 模擬器 V4</title>
+<title>ET35 儀表 FQC 模擬器 V13</title>
 <style>
 :root{
   --bg:#071016; --panel:#0c1820; --panel2:#10232d; --line:#24404b;
@@ -88,13 +88,16 @@ footer{margin-top:12px;color:#67828a;font-size:10px;text-align:center}
 <div class="app">
 <header>
   <div>
-    <h1>ET35 儀表 FQC 模擬器 V4</h1>
+    <h1>ET35 儀表 FQC 模擬器 V13</h1>
     <div class="sub">HW / SW 讀取 → 燈號逐項點亮 → AOI ROI 檢測 → PWM → PASS/FAIL 報表 → 單項重測 / 重新框選</div>
   </div>
   <div class="toolbar">
     <button class="primary" id="startBtn">▶ 開始完整 FQC</button>
     <button id="stopBtn">■ 停止</button>
-    <button class="success" id="reportBtn">⬇ 匯出報表</button>
+    <button class="success" id="reportBtn">⬇ 匯出 FQC 報表</button>
+    <button id="exportRoiBtn">⬇ 匯出 ROI 座標報表</button>
+    <button id="importRoiBtn" title="選擇上一份 CSV / JSON ROI 報表">⬆ 匯入上次 ROI 報表</button>
+    <input id="roiFileInput" type="file" accept=".csv,.json,text/csv,application/json" style="display:none">
   </div>
 </header>
 
@@ -140,7 +143,7 @@ footer{margin-top:12px;color:#67828a;font-size:10px;text-align:center}
           </div>
           <div class="small" style="margin-top:8px">
             模擬概念：測試項目啟動後只點亮當前燈號，其餘燈號維持 OFF；紅框代表目前 AOI 取像 / 檢測區域。
-            P!、後排 REAR+五格、ACC 小車+100 km/h 均視為一個完整測試項目；28~38 依儀表實際顯示項目逐項測試。
+            P!、後排 REAR+五格、ACC 小車+100 km/h 均視為一個完整測試項目；25~35 依儀表實際顯示項目逐項測試，編號連續不跳號。
             分數低於 Threshold 即判定 FAIL。<br>
             實際 FQC 若使用相機，AOI 端可將這裡的 Canvas 畫面換成相機影像。
           </div>
@@ -156,9 +159,17 @@ footer{margin-top:12px;color:#67828a;font-size:10px;text-align:center}
             <button id="saveAoiBtn">✓ 儲存 ROI</button>
             <button id="resetAoiBtn">↺ 還原預設 ROI</button>
           </div>
+          <div id="roiInfo" class="small" style="margin-top:8px;padding:7px 9px;border:1px solid #24404b;border-radius:7px;background:#08151b">ROI：—</div>
+          <div style="margin-top:9px;padding:8px 9px;border:1px solid #24404b;border-radius:7px;background:#08151b;display:flex;align-items:center;justify-content:space-between;gap:10px">
+            <div>
+              <b style="font-size:12px">🎭 OFF 遮罩顏色</b>
+              <div class="small" style="margin-top:3px">同一組 AOI X / Y / W / H 同時作為 OFF 遮罩位置。</div>
+            </div>
+            <input id="maskColor" type="color" value="#000000" style="width:48px;height:32px;padding:2px">
+          </div>
           <div class="small" style="margin-top:8px">
-            這個雛型會把 ROI 畫在儀表畫面上。實際產品開發時，SOC 微調 UI 後，只需要重新框選該燈號，
-            就能更新 AOI ROI，不必修改整套 FQC 流程。
+            ROI 會同時記住在瀏覽器 LocalStorage；另外可匯出「ROI 座標報表」保存 X / Y / W / H。
+            下一次開啟 HTML 時，可直接匯入上次報表，系統會依 L01~L36 對應回原本的框選位置。
           </div>
         </div>
 
@@ -207,12 +218,30 @@ footer{margin-top:12px;color:#67828a;font-size:10px;text-align:center}
     </div>
 
     <div class="card" style="margin-top:14px">
-      <h2>⑤ FQC Log</h2>
+      <h2>⑤ AOI ROI 座標報表</h2>
+      <div class="cardbody">
+        <div class="small" style="margin-bottom:8px">每一燈號的 X / Y / W / H；可匯出 CSV，下一次直接匯入即可套用。</div>
+        <div class="reportWrap" style="max-height:280px">
+          <table>
+            <thead><tr><th>No.</th><th>Test Item</th><th>X</th><th>Y</th><th>W</th><th>H</th><th>Source</th></tr></thead>
+            <tbody id="roiReportBody"></tbody>
+          </table>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button id="exportRoiBtn2">⬇ 匯出 ROI 座標報表</button>
+          <button id="importRoiBtn2">⬆ 匯入 ROI 報表</button>
+          <span class="small" id="roiFileNameText">目前檔名：ET35_FQC_ROI.csv</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h2>⑥ FQC Log</h2>
       <div class="cardbody"><div class="log" id="log"></div></div>
     </div>
   </div>
 </div>
-<footer>ET35 FQC Prototype V4 — 本頁為功能雛型；AOI Score 為瀏覽器端模擬值，實機需接相機 / AOI SDK / CAN / PWM 量測設備。</footer>
+<footer>ET35 FQC Prototype V10 — 本頁為功能雛型；AOI Score 為瀏覽器端模擬值，實機需接相機 / AOI SDK / CAN / PWM 量測設備。</footer>
 </div>
 
 <script>
@@ -236,9 +265,9 @@ const lampDefs = [
   {id:"L08",name:"Airbag",x:661,y:17,w:45,h:41,color:"#ff4b42"},
   {id:"L09",name:"中央紅色警示",x:728,y:20,w:36,h:35,color:"#ff1f32"},
   {id:"L10",name:"制動警示",x:779,y:17,w:44,h:43,color:"#ffbf32"},
-  {id:"L11",name:"P! Parking / Brake（同一組）",x:826,y:16,w:49,h:46,color:"#ffbf32"},
-  {id:"L12",name:"ABS 警示",x:881,y:17,w:47,h:43,color:"#ffbf32"},
-  {id:"L13",name:"方向盤警示",x:938,y:18,w:46,h:42,color:"#ffbf32"},
+  {id:"L11",name:"P! Parking / Brake（同一組）",x:834,y:16,w:49,h:46,color:"#ffbf32"},
+  {id:"L12",name:"ABS 警示",x:914,y:17,w:47,h:43,color:"#ffbf32"},
+  {id:"L13",name:"方向盤警示",x:971,y:18,w:46,h:42,color:"#ffbf32"},
   {id:"L14",name:"右方向燈",x:1038,y:20,w:36,h:39,color:"#39ff36"},
 
   // 後排：REAR + 五格 = 一個完整測試項目
@@ -252,20 +281,20 @@ const lampDefs = [
   {id:"L21",name:"Oil / System",x:382,y:75,w:44,h:45,color:"#ff392f"},
   {id:"L22",name:"Charging",x:433,y:76,w:45,h:43,color:"#ff6a21"},
   {id:"L23",name:"Fuel",x:483,y:76,w:37,h:43,color:"#ff8d1f"},
-  {id:"L24",name:"EV Ready",x:525,y:75,w:48,h:43,color:"#38ff32"},
-
-  // 使用者指定：28 起為完整測試項目
-  {id:"L28",name:"28 ACC 小車 + 100 km/h",x:574,y:70,w:188,h:53,color:"#32ff32",group:"acc"},
-  {id:"L29",name:"29 LFS",x:758,y:73,w:43,h:44,color:"#33ff36"},
-  {id:"L30",name:"30 遠光燈",x:810,y:73,w:43,h:44,color:"#32ff39"},
-  {id:"L31",name:"31 示寬燈",x:860,y:73,w:46,h:44,color:"#ff942b"},
-  {id:"L32",name:"32 前霧燈",x:913,y:72,w:49,h:46,color:"#efff3b"},
-  {id:"L33",name:"33 後霧燈",x:967,y:74,w:44,h:42,color:"#39ff39"},
-  {id:"L34",name:"34 自動遠燈",x:1017,y:72,w:46,h:45,color:"#efff3b"},
-  {id:"L35",name:"35 AMAP OFF",x:1070,y:72,w:55,h:45,color:"#efff3b"},
-  {id:"L36",name:"36 LV3",x:1124,y:72,w:43,h:45,color:"#39ff39"},
-  {id:"L37",name:"37 AM / PM 時間",x:1170,y:72,w:80,h:45,color:"#eaf4f5"},
-  {id:"L38",name:"38 溫度",x:1250,y:72,w:65,h:45,color:"#eaf4f5"}
+  // 上方 ADAS / EV 區：A 圓框、LFS、ACC、LKA 分開成獨立 AOI 項目
+  {id:"L24",name:"Auto Hold（A 圓框）",x:525,y:75,w:48,h:43,color:"#38ff32"},
+  {id:"L25",name:"LFS（方向盤）",x:583,y:73,w:48,h:45,color:"#33ff36"},
+  {id:"L26",name:"ACC 小車 + 100 km/h",x:642,y:70,w:116,h:53,color:"#32ff32",group:"acc"},
+  {id:"L27",name:"LKA",x:775,y:73,w:40,h:44,color:"#33ff36"},
+  {id:"L28",name:"遠光燈",x:820,y:73,w:43,h:44,color:"#32ff39"},
+  {id:"L29",name:"示寬燈",x:870,y:73,w:46,h:44,color:"#ff942b"},
+  {id:"L30",name:"前霧燈",x:913,y:72,w:49,h:46,color:"#efff3b"},
+  {id:"L31",name:"後霧燈",x:967,y:74,w:44,h:42,color:"#39ff39"},
+  {id:"L32",name:"自動遠燈",x:1017,y:72,w:46,h:45,color:"#efff3b"},
+  {id:"L33",name:"AMAP OFF",x:1070,y:72,w:55,h:45,color:"#efff3b"},
+  {id:"L34",name:"LV3",x:1138,y:72,w:43,h:45,color:"#39ff39"},
+  {id:"L35",name:"AM / PM 時間",x:1188,y:72,w:92,h:45,color:"#eaf4f5"},
+  {id:"L36",name:"溫度",x:1310,y:72,w:42,h:43,color:"#eaf4f5"}
 ];
 
 const tests = [
@@ -289,6 +318,54 @@ let selectStart = null;
 let tempRect = null;
 
 lampDefs.forEach(l => { lampState[l.id]=false; roi[l.id]={x:l.x,y:l.y,w:l.w,h:l.h}; });
+
+const ROI_STORAGE_KEY = "ET35_FQC_ROI_V8";
+const ROI_STORAGE_KEY_LEGACY = "ET35_FQC_ROI_V7";
+let roiSource = {};
+let maskColor = {};
+lampDefs.forEach(d=>{ maskColor[d.id]="#000000"; });
+let importedRoiFileName = "ET35_FQC_ROI.csv";
+let roiFileHandle = null;
+function loadSavedRoi(){
+  try{
+    let raw=localStorage.getItem(ROI_STORAGE_KEY);
+    let migrated=false;
+    if(!raw){ raw=localStorage.getItem(ROI_STORAGE_KEY_LEGACY); migrated=!!raw; }
+    const saved=JSON.parse(raw||"{}");
+    lampDefs.forEach(d=>{
+      const v=saved[d.id];
+      const r=v && v.rect ? v.rect : v;
+      if(r && Number.isFinite(Number(r.x)) && Number.isFinite(Number(r.y)) &&
+         Number.isFinite(Number(r.w)) && Number.isFinite(Number(r.h)) &&
+         Number(r.w)>2 && Number(r.h)>2){
+        roi[d.id]={x:Math.round(Number(r.x)),y:Math.round(Number(r.y)),
+                   w:Math.round(Number(r.w)),h:Math.round(Number(r.h))};
+        roiSource[d.id]=migrated?"Legacy Memory":"Browser Memory";
+        const c=(v&&v.maskColor) || (r&&r.maskColor) || "#000000";
+        if(/^#[0-9a-fA-F]{6}$/.test(String(c))) maskColor[d.id]=String(c);
+      }
+    });
+    if(migrated) localStorage.setItem(ROI_STORAGE_KEY,JSON.stringify(saved));
+    return Object.keys(saved).length>0;
+  }catch(e){ return false; }
+}
+
+function saveRoiToStorage(){
+  try{
+    const obj={};
+    lampDefs.forEach(d=>{
+      obj[d.id]={x:roi[d.id].x,y:roi[d.id].y,w:roi[d.id].w,h:roi[d.id].h,
+                 maskColor:maskColor[d.id]||"#000000"};
+    });
+    localStorage.setItem(ROI_STORAGE_KEY,JSON.stringify(obj));
+    return true;
+  }catch(e){
+    log("ROI 儲存失敗：瀏覽器未允許 LocalStorage");
+    return false;
+  }
+}
+
+const hasSavedRoi=loadSavedRoi();
 
 function log(s){
   const el=document.getElementById("log");
@@ -321,39 +398,44 @@ function rgbDistance(r,g,b,c){
 
 /* 將 ROI 中「高亮 / 高飽和」的燈號像素壓暗，而保留儀表背景。
    這比單純用黑色矩形蓋住更接近真實 LCD 暗燈效果。 */
-function drawLampOff(def){
-  const r=roi[def.id];
-  const data=ctx.getImageData(r.x,r.y,r.w,r.h);
-  for(let i=0;i<data.data.length;i+=4){
-    let R=data.data[i],G=data.data[i+1],B=data.data[i+2];
-    const max=Math.max(R,G,B), min=Math.min(R,G,B);
-    const sat=max-min;
-    const bright=(R+G+B)/3;
-    const target=hexToRgb(def.color);
-    const dist=rgbDistance(R,G,B,def.color);
-
-    // 暗燈：讓原本亮起的彩色像素更淡、更接近 LCD 的熄滅狀態。
-    // 不用整塊黑色矩形，避免把周圍背景一起蓋掉。
-    if((bright>55 && sat>18 && dist<205) || bright>205){
-      const k = Math.min(0.92, Math.max(0.68, (bright-35)/210));
-      data.data[i]   = Math.round(R*(1-k));
-      data.data[i+1] = Math.round(G*(1-k));
-      data.data[i+2] = Math.round(B*(1-k));
-    }
+function rgbToHsv(r,g,b){
+  r/=255;g/=255;b/=255;
+  const max=Math.max(r,g,b),min=Math.min(r,g,b),d=max-min;
+  let h=0;
+  if(d!==0){
+    if(max===r) h=((g-b)/d)%6;
+    else if(max===g) h=(b-r)/d+2;
+    else h=(r-g)/d+4;
+    h*=60;if(h<0)h+=360;
   }
-  ctx.putImageData(data,r.x,r.y);
-
-  // very subtle LCD dark glow, 不直接蓋死背景
-  ctx.save();
-  ctx.globalAlpha=.08;
-  const grad=ctx.createRadialGradient(r.x+r.w/2,r.y+r.h/2,1,r.x+r.w/2,r.y+r.h/2,Math.max(r.w,r.h));
-  grad.addColorStop(0,"#000");
-  grad.addColorStop(1,"transparent");
-  ctx.fillStyle=grad;
-  ctx.fillRect(r.x,r.y,r.w,r.h);
-  ctx.restore();
+  const s=max===0?0:d/max;
+  return {h,s:s*255,v:max*255};
+}
+function hueDistance(a,b){
+  const d=Math.abs(a-b); return Math.min(d,360-d);
 }
 
+/*
+ * 自適應燈號遮罩：
+ * 1) 不再只靠固定 RGB 距離，避免「實際燈色」與設定色略有差異時遮不掉。
+ * 2) 彩色燈號以 HSV 色相 + 飽和度 + 亮度判斷。
+ * 3) 白色文字以低色偏 + 亮度判斷。
+ * 4) ACC 同時處理綠色小車與白色 100 km/h。
+ * 5) 只在目前 ROI 內處理，不蓋掉 ROI 外的儀表背景。
+ */
+function drawLampOff(def){
+  const r=roi[def.id];
+  if(!r || r.w<=0 || r.h<=0)return;
+  const x=Math.max(0,Math.min(canvas.width,r.x));
+  const y=Math.max(0,Math.min(canvas.height,r.y));
+  const w=Math.max(0,Math.min(canvas.width-x,r.w));
+  const h=Math.max(0,Math.min(canvas.height-y,r.h));
+  if(w<=0||h<=0)return;
+  ctx.save();
+  ctx.fillStyle=maskColor[def.id] || "#000000";
+  ctx.fillRect(x,y,w,h);
+  ctx.restore();
+}
 
 function fitAoiLabel(box,r){
   const label=box.querySelector(".aoiLabel");
@@ -372,7 +454,7 @@ function showActiveAoi(id){
   const r=roi[id] || {x:d.x,y:d.y,w:d.w,h:d.h};
   const sx=canvas.clientWidth/canvas.width, sy=canvas.clientHeight/canvas.height;
   ov.innerHTML=`<div class="aoiBox activeAoi" style="display:block;left:${r.x*sx}px;top:${r.y*sy}px;width:${r.w*sx}px;height:${r.h*sy}px">
-    <div class="aoiLabel">AOI ${id}</div>
+    <div class="aoiLabel below">AOI ${id}</div>
   </div>`;
   fitAoiLabel(ov.querySelector(".aoiBox"),r);
 }
@@ -545,23 +627,32 @@ async function runAll(){
   log("========== START FQC ==========");
   results=[];
   renderReport();
-  for(let i=0;i<tests.length;i++){
-    if(!running)break;
-    await testOne(tests[i]);
-  }
-  running=false;
-  document.getElementById("startBtn").disabled=false;
-  if(currentIndex>=tests.length-1){
-    const fail=results.some(x=>x.result==="FAIL");
-    document.getElementById("fqcState").textContent=fail?"FAIL":"PASS";
-    document.getElementById("fqcState").className=fail?"red":"green";
-    log(`========== FQC ${fail?"FAIL":"PASS"} ==========`);
-  }else{
-    document.getElementById("fqcState").textContent="NONE";
-    document.getElementById("fqcState").className="yellow";
-    log("FQC 已停止（未完成，狀態回 NONE）");
+
+  try{
+    for(let i=0;i<tests.length;i++){
+      if(!running)break;
+      await testOne(tests[i]);
+    }
+  }catch(err){
+    const message=err?.message||String(err);
+    log(`FQC 執行錯誤：${message}`);
+    document.getElementById("fqcState").textContent="ERROR";
+    document.getElementById("fqcState").className="red";
+    // Mark the current item as FAIL instead of leaving it permanently at PENDING.
+    if(currentIndex>=0 && tests[currentIndex]){
+      setStep(tests[currentIndex].id,"FAIL",`Runtime Error: ${message}`);
+    }
+  }finally{
+    running=false;
+    document.getElementById("startBtn").disabled=false;
+    if(document.getElementById("fqcState").textContent!=="ERROR"){
+      document.getElementById("fqcState").textContent="DONE";
+      document.getElementById("fqcState").className="green";
+    }
+    log("========== FQC END ==========");
   }
 }
+
 document.getElementById("startBtn").onclick=runAll;
 document.getElementById("stopBtn").onclick=()=>{running=false;};
 
@@ -594,10 +685,18 @@ lampDefs.forEach(d=>{
   op.value=d.id;op.textContent=`${d.id} - ${d.name}`;
   aoiSelect.appendChild(op);
 });
+function updateRoiInfo(){
+  const id=aoiSelect.value, r=roi[id];
+  const el=document.getElementById("roiInfo");
+  if(el && r) el.textContent=`ROI ${id}：X=${r.x}，Y=${r.y}，W=${r.w}，H=${r.h}　· ${roiSource[id]||"預設 ROI"}`;
+}
+
 function showAoi(){
   const id=aoiSelect.value,r=roi[id];
+  document.getElementById("maskColor").value=maskColor[id]||"#000000";
+  updateRoiInfo();
   const ov=document.getElementById("overlay");
-  ov.innerHTML=`<div class="aoiBox" id="aoiBox"><div class="aoiLabel">AOI ${id}</div></div>`;
+  ov.innerHTML=`<div class="aoiBox" id="aoiBox"><div class="aoiLabel below">AOI ${id}</div></div>`;
   const box=document.getElementById("aoiBox");
   const scaleX=canvas.clientWidth/canvas.width,scaleY=canvas.clientHeight/canvas.height;
   box.style.display="block";
@@ -608,23 +707,28 @@ function showAoi(){
   box.style.width=(r.w*scaleX)+"px";box.style.height=(r.h*scaleY)+"px";
 }
 aoiSelect.onchange=showAoi;
+window.addEventListener("resize",()=>{ if(document.getElementById("tab-aoi").classList.contains("active")) showAoi(); });
 document.getElementById("drawAoiBtn").onclick=()=>{
   selecting=true;
   log("AOI 框選模式：請在儀表畫面拖曳矩形");
 };
 document.getElementById("saveAoiBtn").onclick=()=>{
-  if(tempRect){
-    roi[aoiSelect.value]={...tempRect};
-    tempRect=null;
-    showAoi();
-    redraw();
-    log(`已儲存 ${aoiSelect.value} ROI`);
-  }else log("目前沒有新的 ROI");
+  if(!tempRect || selectingType!=="roi"){ log("目前沒有新的 ROI"); return; }
+  const id=aoiSelect.value;
+  roi[id]={...tempRect};
+  roiSource[id]="Custom ROI";
+  maskColor[id]=document.getElementById("maskColor").value||"#000000";
+  tempRect=null; selectingType=null;
+  saveRoiToStorage(); showAoi(); redraw(); renderRoiReport();
+  log(`已儲存 ${id} ROI + Mask Color ${maskColor[id]}`);
 };
 document.getElementById("resetAoiBtn").onclick=()=>{
   const d=lampDefs.find(x=>x.id===aoiSelect.value);
   roi[d.id]={x:d.x,y:d.y,w:d.w,h:d.h};
-  showAoi();log(`已還原 ${d.id} 預設 ROI`);
+  roiSource[d.id]="Default ROI";
+  maskColor[d.id]="#000000";
+  saveRoiToStorage(); showAoi(); redraw(); renderRoiReport();
+  log(`已還原 ${d.id} 預設 ROI / Mask`);
 };
 
 function canvasPoint(e){
@@ -653,6 +757,311 @@ canvas.addEventListener("mouseup",e=>{
   selecting=false;selectStart=null;
   log("完成 ROI 框選，請按「儲存 ROI」");
 });
+
+/* ============================================================
+   ROI 座標報表：CSV 匯出 / 匯入
+   - 匯入後依 ID（L01~L36）套用 X/Y/W/H
+   - 匯出檔名沿用「最近一次匯入」的檔名，方便使用者直接覆蓋舊檔
+   ============================================================ */
+function csvEscape(v){
+  const t=String(v??"");
+  return /[",\n\r]/.test(t) ? '"'+t.replaceAll('"','""')+'"' : t;
+}
+function csvParse(text){
+  text=String(text||"");
+  text=text.replace(/^\uFEFF/,"");
+  // Repair legacy exports that stored escape sequences as literal text.
+  if(!text.includes("\n") && text.includes("\\r\\n")) text=text.replaceAll("\\r\\n","\n");
+  if(!text.includes("\n") && text.includes("\\n")) text=text.replaceAll("\\n","\n");
+  text=text.replace(/\r\n/g,"\n").replace(/\r/g,"\n");
+
+  const rows=[]; let row=[], cell="", quoted=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(quoted){
+      if(c==='"' && text[i+1]==='"'){ cell+='"'; i++; }
+      else if(c==='"') quoted=false;
+      else cell+=c;
+    }else{
+      if(c==='"') quoted=true;
+      else if(c===','){ row.push(cell); cell=""; }
+      else if(c==='\n'){ row.push(cell); rows.push(row); row=[]; cell=""; }
+      else cell+=c;
+    }
+  }
+  if(cell!=="" || row.length){ row.push(cell); rows.push(row); }
+  return rows.filter(r=>r.some(c=>String(c).trim()!==""));
+}
+
+function roiFileBase(name){
+  return String(name||"ET35_FQC_ROI.csv").replace(/[\\/:*?"<>|]/g,"_");
+}
+function renderRoiReport(){
+  const body=document.getElementById("roiReportBody");
+  if(!body)return;
+  body.innerHTML=lampDefs.map((d,i)=>{
+    const r=roi[d.id]||{x:d.x,y:d.y,w:d.w,h:d.h};
+    const source=roiSource[d.id]||"Default ROI";
+    const src=source==="自訂框選"?"Custom ROI":source==="匯入報表"?"Imported ROI":"Default ROI";
+    return `<tr><td>${i+1}</td><td>${englishItemName(d)}</td>
+      <td>${r.x}</td><td>${r.y}</td><td>${r.w}</td><td>${r.h}</td>
+      <td>${maskColor[d.id]||"#000000"}</td><td>${src}</td></tr>`;
+  }).join("");
+}
+
+function englishItemName(d){
+  const map={
+    "左方向燈":"Left Turn Signal","引擎 / 系統警示":"Engine / System Warning",
+    "車身動態警示":"Vehicle Stability Warning","Check Engine":"Check Engine",
+    "電瓶警示":"Battery Warning","機油警示":"Oil Warning","前排安全帶":"Front Seat Belt",
+    "Airbag":"Airbag","中央紅色警示":"Central Red Warning","制動警示":"Brake Warning",
+    "P! Parking / Brake（同一組）":"P! Parking / Brake","ABS 警示":"ABS Warning",
+    "方向盤警示":"Steering Wheel Warning","右方向燈":"Right Turn Signal",
+    "後排安全帶（REAR + 五格）":"Rear Seat Belt (REAR + 5 Segments)",
+    "Parking Brake / EPB":"Parking Brake / EPB","PARK 警示":"PARK Warning",
+    "車輛警示":"Vehicle Warning","TPMS":"TPMS","Battery":"Battery",
+    "Oil / System":"Oil / System","Charging":"Charging","Fuel":"Fuel",
+    "Auto Hold（A 圓框）":"Auto Hold (A)","LFS（方向盤）":"LFS (Steering Wheel)",
+    "ACC 小車 + 100 km/h":"ACC Vehicle + 100 km/h","LKA":"LKA",
+    "遠光燈":"High Beam","示寬燈":"Position Lamp","前霧燈":"Front Fog Lamp",
+    "後霧燈":"Rear Fog Lamp","自動遠燈":"Automatic High Beam","AMAP OFF":"AMAP OFF",
+    "LV3":"LV3","AM / PM 時間":"AM / PM Time","溫度":"Temperature"
+  };
+  return map[d.name] || d.name;
+}
+function buildRoiCsv(){
+  const lines=["No,ID,Test_Item,X,Y,W,H,Mask_Color,Source"];
+  lampDefs.forEach((d,i)=>{
+    const r=roi[d.id]||{x:d.x,y:d.y,w:d.w,h:d.h};
+    const source=(roiSource[d.id]==="自訂框選")?"Custom ROI":
+                 (roiSource[d.id]==="匯入報表")?"Imported ROI":"Default ROI";
+    lines.push([i+1,d.id,englishItemName(d),r.x,r.y,r.w,r.h,
+      maskColor[d.id]||"#000000",source].map(csvEscape).join(","));
+  });
+  return "\uFEFF"+lines.join("\r\n")+"\r\n";
+}
+
+async function exportRoiCsv(){
+  const csv=buildRoiCsv();
+  const fileName=roiFileBase(importedRoiFileName||"ET35_FQC_ROI.csv");
+  // Chrome / Edge 若是由「匯入」取得 FileSystemFileHandle，可直接覆蓋原檔。
+  if(roiFileHandle){
+    try{
+      const writable=await roiFileHandle.createWritable();
+      await writable.write(new Blob([csv],{type:"text/csv;charset=utf-8"}));
+      await writable.close();
+      log(`ROI 座標報表已直接覆蓋：${fileName}`);
+      return;
+    }catch(e){
+      log("直接覆蓋失敗，改用下載同名檔案");
+    }
+  }
+  const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download=fileName;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  log(`已匯出 ROI 座標報表：${fileName}（瀏覽器可能自動加上 (1)）`);
+}
+function applyImportedRows(rows,fileName){
+  if(!Array.isArray(rows) || rows.length===0){
+    throw new Error("ROI file has no data.");
+  }
+
+  const normalizeHeader = value => String(value ?? "")
+    .replace(/^\uFEFF/,"")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g,"_");
+
+  const headerRowIndex = rows.findIndex(row=>{
+    const headers = row.map(normalizeHeader);
+    return headers.includes("id") &&
+      (headers.includes("x") || headers.includes("aoi_x"));
+  });
+
+  if(headerRowIndex < 0){
+    throw new Error("Cannot find ROI header. Required columns: ID, X, Y, W, H.");
+  }
+
+  const headerCells = rows[headerRowIndex].map(v =>
+    String(v ?? "").replace(/^\uFEFF/,"").trim()
+  );
+  const normalizedHeaders = headerCells.map(normalizeHeader);
+
+  const findColumn = (...names) => {
+    for(const name of names){
+      const columnIndex = normalizedHeaders.indexOf(normalizeHeader(name));
+      if(columnIndex >= 0) return columnIndex;
+    }
+    return -1;
+  };
+
+  const idColumn = findColumn("ID");
+  const itemColumn = findColumn("Test Item","Test_Item","item","name");
+  const xColumn = findColumn("X","AOI_X");
+  const yColumn = findColumn("Y","AOI_Y");
+  const wColumn = findColumn("W","AOI_W");
+  const hColumn = findColumn("H","AOI_H");
+  const maskColorColumn = findColumn("Mask_Color","MASK_Color","Mask Color","mask_color");
+
+  if([xColumn,yColumn,wColumn,hColumn].some(v=>v<0)){
+    throw new Error("ROI file is missing X / Y / W / H.");
+  }
+
+  let importedCount = 0;
+  let skippedCount = 0;
+
+  for(const dataRow of rows.slice(headerRowIndex + 1)){
+    const importedId = idColumn >= 0
+      ? String(dataRow[idColumn] ?? "").trim()
+      : "";
+
+    const importedItem = itemColumn >= 0
+      ? String(dataRow[itemColumn] ?? "").trim()
+      : "";
+
+    let matchedDef = lampDefs.find(def => def.id === importedId);
+
+    if(!matchedDef && importedItem){
+      matchedDef = lampDefs.find(def => def.name === importedItem);
+      if(!matchedDef && typeof englishItemName === "function"){
+        matchedDef = lampDefs.find(def => englishItemName(def) === importedItem);
+      }
+    }
+
+    if(!matchedDef){
+      skippedCount++;
+      continue;
+    }
+
+    const importedX = Number(dataRow[xColumn]);
+    const importedY = Number(dataRow[yColumn]);
+    const importedW = Number(dataRow[wColumn]);
+    const importedH = Number(dataRow[hColumn]);
+
+    if(![importedX,importedY,importedW,importedH].every(Number.isFinite) ||
+       importedW <= 2 || importedH <= 2){
+      skippedCount++;
+      continue;
+    }
+
+    const importedRect = {
+      x: Math.round(importedX),
+      y: Math.round(importedY),
+      w: Math.round(importedW),
+      h: Math.round(importedH)
+    };
+
+    if(importedRect.x < 0 || importedRect.y < 0 ||
+       importedRect.x + importedRect.w > canvas.width ||
+       importedRect.y + importedRect.h > canvas.height){
+      skippedCount++;
+      continue;
+    }
+
+    roi[matchedDef.id] = importedRect;
+    roiSource[matchedDef.id] = "Imported ROI";
+
+    if(maskColorColumn >= 0){
+      const importedColor = String(dataRow[maskColorColumn] ?? "").trim();
+      if(/^#[0-9a-fA-F]{6}$/.test(importedColor)){
+        maskColor[matchedDef.id] = importedColor;
+      }
+    }
+
+    importedCount++;
+  }
+
+  if(importedCount === 0){
+    throw new Error(
+      "No ROI rows matched. Please check that the CSV ID uses L01~L36 and X/Y/W/H are valid."
+    );
+  }
+
+  importedRoiFileName = roiFileBase(fileName || "ET35_FQC_ROI.csv");
+  saveRoiToStorage();
+  renderRoiReport();
+  showAoi();
+  redraw();
+  updateRoiInfo();
+
+  log(
+    `ROI import complete: ${importedCount} items` +
+    (skippedCount ? `, ${skippedCount} rows skipped` : "") +
+    `; file: ${importedRoiFileName}`
+  );
+}
+
+async function importRoiFile(file){
+  if(!file) throw new Error("No file selected.");
+
+  const selectedFileName = String(file.name || "ET35_FQC_ROI.csv");
+  let fileText = await file.text();
+  fileText = fileText.replace(/^\uFEFF/,"");
+
+  const appearsJson = /^\s*[\[{]/.test(fileText) || /\.json$/i.test(selectedFileName);
+
+  if(appearsJson){
+    const parsed = JSON.parse(fileText);
+    const roiList = Array.isArray(parsed)
+      ? parsed
+      : (parsed.rois || parsed.ROI || parsed.data || []);
+
+    if(!Array.isArray(roiList) || roiList.length === 0){
+      throw new Error("JSON contains no ROI data.");
+    }
+
+    const syntheticRows = [
+      ["No","ID","Test_Item","X","Y","W","H","Mask_Color","Source"],
+      ...roiList.map((entry,index)=>[
+        index + 1,
+        entry.id ?? entry.ID ?? "",
+        entry.name ?? entry.item ?? entry.Test_Item ?? entry.Test_Item ?? "",
+        entry.x ?? entry.X ?? "",
+        entry.y ?? entry.Y ?? "",
+        entry.w ?? entry.W ?? "",
+        entry.h ?? entry.H ?? "",
+        entry.maskColor ?? entry.Mask_Color ?? "#000000",
+        entry.source ?? "Imported ROI"
+      ])
+    ];
+
+    applyImportedRows(syntheticRows, selectedFileName);
+    return;
+  }
+
+  const parsedRows = csvParse(fileText);
+  applyImportedRows(parsedRows, selectedFileName);
+}
+
+function openRoiFilePicker(){
+  const input=document.getElementById("roiFileInput");
+  if(input) input.click();
+}
+
+document.getElementById("exportRoiBtn").onclick=exportRoiCsv;
+document.getElementById("exportRoiBtn2").onclick=exportRoiCsv;
+document.getElementById("importRoiBtn").onclick=openRoiFilePicker;
+document.getElementById("importRoiBtn2").onclick=openRoiFilePicker;
+document.getElementById("roiFileInput").addEventListener("change",async e=>{
+  const file=e.target.files?.[0];
+  if(!file)return;
+  try{
+    await importRoiFile(file);
+    // Keep the chosen filename for the next export.
+    log(`已載入 ROI 檔案：${file.name}`);
+  }catch(err){
+    const msg=err?.message||String(err);
+    log(`ROI 匯入失敗：${msg}`);
+    alert(`ROI 匯入失敗\n\n${msg}\n\n請確認 CSV 欄位包含：ID、X、Y、W、H。`);
+  }finally{
+    e.target.value="";
+  }
+});
+
+renderRoiReport();
 
 document.getElementById("pwmBtn").onclick=()=>{
   const cmd=Number(document.getElementById("pwmCmd").value);
@@ -696,13 +1105,12 @@ document.getElementById("reportBtn").onclick=()=>{
   const blob=new Blob([html],{type:"text/html;charset=utf-8"});
   const a=document.createElement("a");
   a.href=URL.createObjectURL(blob);
-  a.download=`ET35_FQC_Report_V4_${new Date().toISOString().slice(0,19).replaceAll(":","-")}.html`;
+  a.download=`ET35_FQC_Report_V8_${new Date().toISOString().slice(0,19).replaceAll(":","-")}.html`;
   a.click();URL.revokeObjectURL(a.href);
 };
 
-log("系統 READY · V4：AOI 紅框標籤已改為框內小標，避免遮擋燈號");
+log(`系統 READY · V8：ROI 可重新框選、記憶 X/Y/W/H，並可匯出/匯入座標報表${hasSavedRoi?"（已載入上次 ROI）":""}`);
 log("可直接按「開始完整 FQC」進行模擬");
 </script>
 </body>
 </html>
-
